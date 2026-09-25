@@ -1,0 +1,2414 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ledger — track what you spend</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+      /* ══════════════════════════════════════════════
+   TOKENS
+══════════════════════════════════════════════ */
+      :root {
+        --ink: #10151b;
+        --surface: #161e26;
+        --surface2: #1d2730;
+        --surface3: #263139;
+        --line: rgba(255, 255, 255, 0.08);
+        --line2: rgba(255, 255, 255, 0.14);
+
+        --text: #edeef2;
+        --text2: #8b949c;
+        --text3: #545c64;
+
+        --gain: #4fa98c;
+        --gain-tint: rgba(79, 169, 140, 0.12);
+        --spend: #c1652f;
+        --spend-tint: rgba(193, 101, 47, 0.12);
+        --gold: #d4a94a;
+        --gold-tint: rgba(212, 169, 74, 0.12);
+        --red: #c1523f;
+
+        --ff-serif: "Newsreader", serif;
+        --ff-sans: "Manrope", sans-serif;
+        --ff-mono: "IBM Plex Mono", monospace;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        background: var(--ink);
+        color: var(--text);
+        font-family: var(--ff-sans);
+        font-size: 14px;
+        line-height: 1.5;
+        min-height: 100vh;
+      }
+      button {
+        cursor: pointer;
+        border: none;
+        background: none;
+        color: inherit;
+        font-family: inherit;
+      }
+      input,
+      textarea,
+      select {
+        font-family: inherit;
+        color: inherit;
+        border: none;
+        outline: none;
+        background: none;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      .mono {
+        font-family: var(--ff-mono);
+      }
+      ::selection {
+        background: var(--gold);
+        color: var(--ink);
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--surface3);
+        border-radius: 9px;
+      }
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+      }
+      :focus-visible {
+        outline: 2px solid var(--gold);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+
+      /* ══════════════════════════════════════════════
+   AUTH PAGE
+══════════════════════════════════════════════ */
+      .authscreen {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        position: relative;
+      }
+      .authscreen::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        background:
+          radial-gradient(
+            ellipse 700px 500px at 15% 20%,
+            rgba(212, 169, 74, 0.06) 0%,
+            transparent 60%
+          ),
+          radial-gradient(
+            ellipse 600px 500px at 85% 80%,
+            rgba(79, 169, 140, 0.05) 0%,
+            transparent 60%
+          ),
+          var(--ink);
+      }
+      .auth-card {
+        width: 100%;
+        max-width: 380px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 32px;
+      }
+      .auth-brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 22px;
+      }
+      .auth-brand svg {
+        width: 22px;
+        height: 22px;
+        color: var(--gold);
+      }
+      .auth-brand span {
+        font-family: var(--ff-serif);
+        font-size: 19px;
+        font-weight: 600;
+        font-style: italic;
+      }
+      .auth-title {
+        font-family: var(--ff-serif);
+        font-size: 22px;
+        font-weight: 500;
+        margin-bottom: 4px;
+      }
+      .auth-sub {
+        font-size: 12.5px;
+        color: var(--text2);
+        margin-bottom: 22px;
+      }
+      .auth-alert {
+        border-radius: 8px;
+        padding: 10px 13px;
+        font-size: 12.5px;
+        margin-bottom: 14px;
+        display: none;
+      }
+      .auth-alert.show {
+        display: block;
+      }
+      .auth-alert.err {
+        background: rgba(193, 82, 63, 0.12);
+        border: 1px solid rgba(193, 82, 63, 0.3);
+        color: #e5988a;
+      }
+      .auth-alert.ok {
+        background: var(--gain-tint);
+        border: 1px solid rgba(79, 169, 140, 0.3);
+        color: var(--gain);
+      }
+      .auth-link {
+        text-align: center;
+        font-size: 12.5px;
+        color: var(--text2);
+        margin-top: 16px;
+      }
+      .auth-link span {
+        color: var(--gold);
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .auth-link span:hover {
+        text-decoration: underline;
+      }
+      .auth-spin {
+        width: 15px;
+        height: 15px;
+        border: 2px solid rgba(0, 0, 0, 0.25);
+        border-top-color: #1a1408;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+        display: none;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .btn-primary.loading .auth-spin {
+        display: inline-block;
+      }
+      .btn-primary.loading span {
+        display: none;
+      }
+
+      .user-chip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 6px 10px;
+        font-size: 12.5px;
+        color: var(--text2);
+      }
+      .user-chip .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--gain);
+      }
+      .user-chip button {
+        color: var(--text3);
+        display: flex;
+      }
+      .user-chip button:hover {
+        color: var(--text);
+      }
+      .user-chip button svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      /* ══════════════════════════════════════════════
+   SHELL
+══════════════════════════════════════════════ */
+      #app {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 0 28px 60px;
+        display: none;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+        padding: 26px 0 20px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .brand svg {
+        width: 22px;
+        height: 22px;
+        color: var(--gold);
+      }
+      .brand-name {
+        font-family: var(--ff-serif);
+        font-size: 21px;
+        font-weight: 600;
+        font-style: italic;
+      }
+
+      .month-nav {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-left: 8px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 4px;
+      }
+      .month-nav button {
+        width: 30px;
+        height: 30px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text2);
+      }
+      .month-nav button:hover {
+        background: var(--surface3);
+        color: var(--text);
+      }
+      .month-nav button svg {
+        width: 15px;
+        height: 15px;
+      }
+      .month-label {
+        font-family: var(--ff-mono);
+        font-size: 13px;
+        padding: 0 10px;
+        min-width: 120px;
+        text-align: center;
+      }
+
+      .topbar-actions {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .search-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 8px 12px;
+        width: 200px;
+        transition: border-color 0.15s;
+      }
+      .search-wrap:focus-within {
+        border-color: var(--line2);
+      }
+      .search-wrap svg {
+        width: 14px;
+        height: 14px;
+        color: var(--text3);
+        flex-shrink: 0;
+      }
+      .search-wrap input {
+        flex: 1;
+        font-size: 13px;
+      }
+      .search-wrap input::placeholder {
+        color: var(--text3);
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-size: 13.5px;
+        font-weight: 700;
+        transition:
+          background 0.15s,
+          transform 0.1s,
+          opacity 0.15s;
+      }
+      .btn svg {
+        width: 15px;
+        height: 15px;
+      }
+      .btn-primary {
+        background: var(--gold);
+        color: #1a1408;
+      }
+      .btn-primary:hover {
+        opacity: 0.9;
+      }
+      .btn-primary:active {
+        transform: translateY(1px);
+      }
+      .btn-quiet {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        color: var(--text2);
+      }
+      .btn-quiet:hover {
+        background: var(--surface3);
+        color: var(--text);
+      }
+
+      /* ══════════════════════════════════════════════
+   SUMMARY STRIP
+══════════════════════════════════════════════ */
+      .summary {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr 1fr;
+        gap: 1px;
+        background: var(--line);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 28px;
+      }
+      .sum-cell {
+        background: var(--surface);
+        padding: 20px 24px;
+      }
+      .sum-cell .label {
+        font-size: 12px;
+        color: var(--text2);
+        margin-bottom: 8px;
+      }
+      .sum-cell .value {
+        font-family: var(--ff-serif);
+        font-size: 30px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+      .sum-cell.net .value {
+        font-style: italic;
+      }
+      .sum-cell.income .value {
+        color: var(--gain);
+      }
+      .sum-cell.expense .value {
+        color: var(--spend);
+      }
+      .sum-cell .sub {
+        font-size: 11.5px;
+        color: var(--text3);
+        margin-top: 6px;
+        font-family: var(--ff-mono);
+      }
+
+      .budget-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .budget-track {
+        flex: 1;
+        height: 6px;
+        border-radius: 9px;
+        background: var(--surface3);
+        overflow: hidden;
+      }
+      .budget-fill {
+        height: 100%;
+        border-radius: 9px;
+        background: var(--gold);
+        transition: width 0.3s;
+      }
+      .budget-fill.over {
+        background: var(--red);
+      }
+      .budget-edit {
+        font-size: 11px;
+        color: var(--text3);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      .budget-edit:hover {
+        color: var(--text2);
+      }
+
+      /* ══════════════════════════════════════════════
+   MAIN GRID
+══════════════════════════════════════════════ */
+      .grid {
+        display: grid;
+        grid-template-columns: 290px 1fr;
+        gap: 24px;
+        align-items: start;
+      }
+
+      /* ---- category breakdown ---- */
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 20px;
+      }
+      .panel-h {
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .panel-h .hint {
+        font-size: 11.5px;
+        color: var(--text3);
+        font-weight: 400;
+      }
+
+      .cat-bar-row {
+        margin-bottom: 14px;
+      }
+      .cat-bar-row:last-child {
+        margin-bottom: 0;
+      }
+      .cat-bar-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+        font-size: 12.5px;
+      }
+      .cat-bar-name {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--text);
+      }
+      .cat-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .cat-bar-amt {
+        font-family: var(--ff-mono);
+        color: var(--text2);
+        font-size: 11.5px;
+      }
+      .cat-bar-track {
+        height: 5px;
+        border-radius: 9px;
+        background: var(--surface3);
+        overflow: hidden;
+      }
+      .cat-bar-fill {
+        height: 100%;
+        border-radius: 9px;
+      }
+
+      .cat-empty {
+        font-size: 12.5px;
+        color: var(--text3);
+        padding: 8px 0;
+      }
+
+      /* ---- ledger ---- */
+      .ledger-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+      }
+      .ledger-title {
+        font-family: var(--ff-serif);
+        font-size: 19px;
+        font-weight: 500;
+        font-style: italic;
+      }
+
+      .day-group {
+        margin-top: 22px;
+      }
+      .day-group:first-child {
+        margin-top: 0;
+      }
+      .day-heading {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        font-family: var(--ff-mono);
+        font-size: 11.5px;
+        color: var(--text3);
+        padding-bottom: 8px;
+        margin-bottom: 2px;
+        border-bottom: 1px solid var(--line);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .day-heading .day-total {
+        margin-left: auto;
+        color: var(--text2);
+      }
+
+      .tx-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 4px;
+        border-bottom: 1px solid var(--line);
+        position: relative;
+      }
+      .tx-row:last-child {
+        border-bottom: none;
+      }
+      .tx-cat-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .tx-main {
+        flex: 1;
+        min-width: 0;
+      }
+      .tx-desc {
+        font-size: 13.5px;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .tx-meta {
+        font-size: 11.5px;
+        color: var(--text3);
+        margin-top: 2px;
+        display: flex;
+        gap: 8px;
+      }
+      .tx-amt {
+        font-family: var(--ff-mono);
+        font-size: 14px;
+        font-weight: 500;
+        flex-shrink: 0;
+        font-variant-numeric: tabular-nums;
+      }
+      .tx-amt.income {
+        color: var(--gain);
+      }
+      .tx-amt.expense {
+        color: var(--spend);
+      }
+      .tx-actions {
+        display: flex;
+        gap: 2px;
+        opacity: 0;
+        transition: opacity 0.12s;
+        flex-shrink: 0;
+      }
+      .tx-row:hover .tx-actions,
+      .tx-row:focus-within .tx-actions {
+        opacity: 1;
+      }
+      .icon-btn {
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text3);
+      }
+      .icon-btn:hover {
+        background: var(--surface3);
+        color: var(--text);
+      }
+      .icon-btn svg {
+        width: 13px;
+        height: 13px;
+      }
+      .icon-btn.danger:hover {
+        background: rgba(193, 82, 63, 0.15);
+        color: var(--red);
+      }
+
+      .empty {
+        padding: 60px 10px;
+        text-align: center;
+      }
+      .empty svg {
+        width: 36px;
+        height: 36px;
+        color: var(--text3);
+        margin: 0 auto 14px;
+      }
+      .empty h3 {
+        font-family: var(--ff-serif);
+        font-size: 17px;
+        font-weight: 500;
+        margin-bottom: 6px;
+      }
+      .empty p {
+        font-size: 13px;
+        color: var(--text2);
+        max-width: 34ch;
+        margin: 0 auto 18px;
+        line-height: 1.6;
+      }
+
+      /* ══════════════════════════════════════════════
+   PANEL (add / edit transaction)
+══════════════════════════════════════════════ */
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(6, 9, 12, 0.55);
+        z-index: 40;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+      }
+      .overlay.show {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .sheet {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 420px;
+        max-width: 92vw;
+        background: var(--ink);
+        border-left: 1px solid var(--line);
+        z-index: 41;
+        transform: translateX(100%);
+        transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+      }
+      .sheet.show {
+        transform: translateX(0);
+      }
+      .sheet-head {
+        padding: 22px 24px 16px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+      }
+      .sheet-title {
+        font-family: var(--ff-serif);
+        font-size: 19px;
+        font-weight: 500;
+        font-style: italic;
+      }
+      .sheet-close {
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text2);
+      }
+      .sheet-close:hover {
+        background: var(--surface3);
+      }
+      .sheet-close svg {
+        width: 15px;
+        height: 15px;
+      }
+      .sheet-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px 24px;
+      }
+      .sheet-foot {
+        padding: 16px 24px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        gap: 10px;
+        flex-shrink: 0;
+      }
+      .sheet-foot .btn {
+        flex: 1;
+        justify-content: center;
+      }
+
+      .type-toggle {
+        display: flex;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 3px;
+        margin-bottom: 18px;
+      }
+      .type-opt {
+        flex: 1;
+        text-align: center;
+        padding: 9px;
+        border-radius: 7px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text2);
+      }
+      .type-opt.active.expense {
+        background: var(--spend-tint);
+        color: var(--spend);
+      }
+      .type-opt.active.income {
+        background: var(--gain-tint);
+        color: var(--gain);
+      }
+
+      .fld {
+        margin-bottom: 15px;
+      }
+      .fld-row {
+        display: flex;
+        gap: 12px;
+      }
+      .fld-row .fld {
+        flex: 1;
+      }
+      .fld label {
+        display: block;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: var(--text2);
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+      .fld input[type="text"],
+      .fld input[type="number"],
+      .fld input[type="date"],
+      .fld textarea,
+      .fld select {
+        width: 100%;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 13.5px;
+        transition: border-color 0.15s;
+      }
+      .fld input:focus,
+      .fld textarea:focus,
+      .fld select:focus {
+        border-color: var(--line2);
+      }
+      .fld textarea {
+        resize: vertical;
+        min-height: 60px;
+        line-height: 1.55;
+      }
+      .amt-wrap {
+        position: relative;
+      }
+      .amt-wrap .cur {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text2);
+        font-family: var(--ff-mono);
+        font-size: 13.5px;
+      }
+      .amt-wrap input {
+        padding-left: 26px;
+        font-family: var(--ff-mono);
+      }
+      .fld select {
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238B949C' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+      }
+
+      .cat-picker {
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+      }
+      .cat-pick {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 11px;
+        border-radius: 7px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        font-size: 12px;
+        color: var(--text2);
+      }
+      .cat-pick.active {
+        border-color: currentColor;
+        font-weight: 700;
+        color: var(--text);
+      }
+      .cat-pick .cat-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+      }
+
+      /* ══════════════════════════════════════════════
+   MODAL (budget edit)
+══════════════════════════════════════════════ */
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(6, 9, 12, 0.6);
+        z-index: 50;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .modal-overlay.show {
+        display: flex;
+      }
+      .modal {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 24px;
+        width: 100%;
+        max-width: 340px;
+      }
+      .modal h3 {
+        font-family: var(--ff-serif);
+        font-size: 17px;
+        font-weight: 500;
+        margin-bottom: 14px;
+      }
+      .modal .fld {
+        margin-bottom: 18px;
+      }
+      .modal-actions {
+        display: flex;
+        gap: 10px;
+      }
+      .modal-actions .btn {
+        flex: 1;
+        justify-content: center;
+      }
+
+      /* ══════════════════════════════════════════════
+   AUTH GATE (Supabase sign in / sign up)
+══════════════════════════════════════════════ */
+      #authGate {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .auth-card {
+        width: 100%;
+        max-width: 380px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 32px;
+      }
+      .auth-brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 22px;
+      }
+      .auth-brand svg {
+        width: 20px;
+        height: 20px;
+        color: var(--gold);
+      }
+      .auth-brand span {
+        font-family: var(--ff-serif);
+        font-size: 19px;
+        font-style: italic;
+        font-weight: 600;
+      }
+      .auth-title {
+        font-family: var(--ff-serif);
+        font-size: 20px;
+        font-weight: 500;
+        margin-bottom: 4px;
+      }
+      .auth-sub {
+        font-size: 12.5px;
+        color: var(--text2);
+        margin-bottom: 22px;
+      }
+      .auth-alert {
+        border-radius: 8px;
+        padding: 10px 13px;
+        font-size: 12.5px;
+        margin-bottom: 14px;
+        display: none;
+      }
+      .auth-alert.err {
+        background: rgba(193, 82, 63, 0.12);
+        border: 1px solid rgba(193, 82, 63, 0.3);
+        color: #e39485;
+        display: block;
+      }
+      .auth-alert.ok {
+        background: var(--gain-tint);
+        border: 1px solid rgba(79, 169, 140, 0.3);
+        color: var(--gain);
+        display: block;
+      }
+      .auth-toggle {
+        text-align: center;
+        font-size: 12.5px;
+        color: var(--text2);
+        margin-top: 16px;
+      }
+      .auth-toggle span {
+        color: var(--gold);
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .auth-toggle span:hover {
+        text-decoration: underline;
+      }
+      .auth-local {
+        text-align: center;
+        margin-top: 14px;
+      }
+      .auth-local button {
+        font-size: 12px;
+        color: var(--text3);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      .auth-local button:hover {
+        color: var(--text2);
+      }
+
+      .sync-badge {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+        color: var(--text2);
+        padding: 8px 12px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+      }
+      .sync-badge svg {
+        width: 13px;
+        height: 13px;
+        flex-shrink: 0;
+      }
+      .sync-badge.local {
+        color: var(--text3);
+      }
+      .sync-badge.on svg {
+        color: var(--gain);
+      }
+      .sync-dot-live {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--gain);
+        flex-shrink: 0;
+      }
+      .account-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text2);
+      }
+      .account-btn:hover {
+        background: var(--surface3);
+        color: var(--text);
+      }
+      .account-btn svg {
+        width: 15px;
+        height: 15px;
+      }
+
+      /* toast */
+      .toast-host {
+        position: fixed;
+        bottom: 22px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 60;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+      }
+      .toast {
+        background: var(--surface3);
+        color: var(--text);
+        padding: 11px 18px;
+        border-radius: 8px;
+        font-size: 13px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        animation: toastIn 0.2s ease both;
+        border: 1px solid var(--line2);
+      }
+      @keyframes toastIn {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* ══════════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════════ */
+      @media (max-width: 860px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .summary {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 560px) {
+        #app {
+          padding: 0 16px 50px;
+        }
+        .topbar {
+          padding: 18px 0 16px;
+        }
+        .search-wrap {
+          display: none;
+        }
+        .btn-primary span {
+          display: none;
+        }
+        .month-label {
+          min-width: 96px;
+          font-size: 12px;
+        }
+        .sum-cell {
+          padding: 16px 18px;
+        }
+        .sum-cell .value {
+          font-size: 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="authGate" style="display: none">
+      <div class="auth-card">
+        <div class="auth-brand">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M4 4h13a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z" />
+            <path d="M7 4v13a3 3 0 0 0 3 3h10" />
+          </svg>
+          <span>Ledger</span>
+        </div>
+        <div class="auth-title" id="authTitle">Sign in</div>
+        <div class="auth-sub" id="authSub">
+          Sync your transactions across every device.
+        </div>
+        <div class="auth-alert" id="authAlert"></div>
+        <div class="fld">
+          <label for="authEmail">Email</label>
+          <input
+            type="password"
+            id="authEmail"
+            placeholder="you@example.com"
+            autocomplete="email"
+          />
+        </div>
+        <div class="fld">
+          <label for="authPassword">Password</label>
+          <input
+            type="text"
+            id="authPassword"
+            placeholder="At least 6 characters"
+            autocomplete="current-password"
+          />
+        </div>
+        <button
+          class="btn btn-primary"
+          id="authSubmit"
+          style="width: 100%; justify-content: center; margin-top: 4px"
+        >
+          <span id="authSubmitLabel">Sign in</span>
+        </button>
+        <div class="auth-toggle" id="authToggle">
+          Don't have an account? <span id="authToggleLink">Create one</span>
+        </div>
+        <div class="auth-local">
+          <button id="authLocalBtn">
+            Skip — use this device only, no account
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="app" style="display: none">
+      <header class="topbar">
+        <div class="brand">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M4 4h13a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z" />
+            <path d="M7 4v13a3 3 0 0 0 3 3h10" />
+            <line x1="8" y1="9" x2="15" y2="9" />
+            <line x1="8" y1="13" x2="13" y2="13" />
+          </svg>
+          <span class="brand-name">Ledger</span>
+        </div>
+        <div class="month-nav">
+          <button id="prevMonth" aria-label="Previous month">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <span class="month-label mono" id="monthLabel"></span>
+          <button id="nextMonth" aria-label="Next month">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        </div>
+        <div class="topbar-actions">
+          <div class="search-wrap">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              id="searchInput"
+              type="text"
+              placeholder="Search transactions…"
+              autocomplete="off"
+            />
+          </div>
+          <button class="btn btn-primary" id="newTxBtn">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>Add transaction</span>
+          </button>
+          <div class="sync-badge" id="syncBadge"></div>
+          <button
+            class="account-btn"
+            id="accountBtn"
+            style="display: none"
+            aria-label="Account"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 20c1.5-4 5-6 8-6s6.5 2 8 6" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="summary">
+        <div class="sum-cell net">
+          <div class="label">Net for the month</div>
+          <div class="value mono" id="netValue">$0.00</div>
+          <div class="budget-row" id="budgetRow">
+            <div class="budget-track">
+              <div class="budget-fill" id="budgetFill" style="width: 0%"></div>
+            </div>
+            <button class="budget-edit" id="budgetEditBtn">set budget</button>
+          </div>
+        </div>
+        <div class="sum-cell income">
+          <div class="label">Income</div>
+          <div class="value mono" id="incomeValue">$0.00</div>
+          <div class="sub" id="incomeSub">0 transactions</div>
+        </div>
+        <div class="sum-cell expense">
+          <div class="label">Expenses</div>
+          <div class="value mono" id="expenseValue">$0.00</div>
+          <div class="sub" id="expenseSub">0 transactions</div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="panel">
+          <div class="panel-h">
+            Where it went <span class="hint">this month</span>
+          </div>
+          <div id="catBreakdown"></div>
+        </div>
+
+        <div>
+          <div class="ledger-head">
+            <div class="ledger-title">Transactions</div>
+          </div>
+          <div id="ledger"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- add/edit transaction sheet -->
+    <div class="overlay" id="overlay"></div>
+    <aside class="sheet" id="sheet">
+      <div class="sheet-head">
+        <div class="sheet-title" id="sheetTitle">Add transaction</div>
+        <button class="sheet-close" id="sheetClose" aria-label="Close">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div class="sheet-body">
+        <div class="type-toggle" id="typeToggle">
+          <button type="button" class="type-opt expense" data-type="expense">
+            Expense
+          </button>
+          <button type="button" class="type-opt income" data-type="income">
+            Income
+          </button>
+        </div>
+
+        <div class="fld">
+          <label for="fDesc">Description</label>
+          <input
+            type="text"
+            id="fDesc"
+            placeholder="e.g. Groceries at Trader Joe's"
+          />
+        </div>
+
+        <div class="fld-row">
+          <div class="fld">
+            <label for="fAmt">Amount</label>
+            <div class="amt-wrap">
+              <span class="cur">$</span
+              ><input
+                type="number"
+                id="fAmt"
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+              />
+            </div>
+          </div>
+          <div class="fld">
+            <label for="fDate">Date</label>
+            <input type="date" id="fDate" />
+          </div>
+        </div>
+
+        <div class="fld" id="catFld">
+          <label>Category</label>
+          <div class="cat-picker" id="catPicker"></div>
+        </div>
+
+        <div class="fld">
+          <label for="fNote"
+            >Note
+            <span style="text-transform: none; font-weight: 400"
+              >(optional)</span
+            ></label
+          >
+          <textarea id="fNote" placeholder="Any extra detail…"></textarea>
+        </div>
+      </div>
+      <div class="sheet-foot">
+        <button class="btn btn-quiet" id="cancelBtn">Cancel</button>
+        <button class="btn btn-primary" id="saveBtn">
+          <span>Save transaction</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- budget modal -->
+    <div class="modal-overlay" id="modalOverlay">
+      <div class="modal">
+        <h3>Monthly budget</h3>
+        <div class="fld">
+          <label for="fBudget">Target spending for the month</label>
+          <div class="amt-wrap">
+            <span class="cur">$</span
+            ><input
+              type="number"
+              id="fBudget"
+              placeholder="0.00"
+              step="1"
+              min="0"
+            />
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-quiet" id="budgetCancel">Cancel</button>
+          <button class="btn btn-primary" id="budgetSave">
+            <span>Save</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast-host" id="toastHost"></div>
+
+    <script>
+      /* ══════════════════════════════════════════════
+   SUPABASE CONFIG
+   Fill these in with your own project's values (Project Settings → API).
+   Leave them as-is to run Ledger in local-only mode (data stays in this browser).
+══════════════════════════════════════════════ */
+      const SUPABASE_URL = "https://dulzoxhtwuezlvmucxji.supabase.co";
+      const SUPABASE_ANON_KEY =
+        "sb_publishable_RFozm6drGcbh493lS8jGRw_QijhI9bm";
+
+      const SUPABASE_CONFIGURED =
+        SUPABASE_URL.startsWith("http") &&
+        !SUPABASE_ANON_KEY.startsWith("YOUR_");
+      const sb = SUPABASE_CONFIGURED
+        ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+        : null;
+
+      let me = null; // supabase auth user, or null in local mode
+      let localOnly = !SUPABASE_CONFIGURED; // true once the person chooses "skip" too
+      let authMode = "signin"; // 'signin' | 'signup'
+      let realtimeChannel = null;
+
+      /* ══════════════════════════════════════════════
+   DATA
+══════════════════════════════════════════════ */
+      const CATS = {
+        food: { label: "Food & dining", color: "#C1652F" },
+        transport: { label: "Transport", color: "#5C7B8C" },
+        housing: { label: "Housing", color: "#8C6E4F" },
+        utilities: { label: "Utilities", color: "#6B7FBF" },
+        shopping: { label: "Shopping", color: "#B0629C" },
+        fun: { label: "Entertainment", color: "#D4A94A" },
+        health: { label: "Health", color: "#4FA98C" },
+        other: { label: "Other", color: "#8B949C" },
+      };
+      const TX_KEY = "ledger.transactions.v1";
+      const BUDGET_KEY = "ledger.budgets.v1";
+
+      let txs = [];
+      let budgets = {}; // { 'YYYY-MM': amount }
+      let viewDate = new Date(); // month currently viewed
+      let query = "";
+      let editingId = null;
+      let draftType = "expense";
+      let draftCat = "food";
+
+      function loadTxsLocal() {
+        try {
+          const raw = localStorage.getItem(TX_KEY);
+          if (raw) return JSON.parse(raw);
+        } catch (e) {}
+        return seedTxs();
+      }
+      function saveTxsLocal() {
+        try {
+          localStorage.setItem(TX_KEY, JSON.stringify(txs));
+        } catch (e) {
+          toast("Could not save — your browser storage may be full.");
+        }
+      }
+      function loadBudgetsLocal() {
+        try {
+          const raw = localStorage.getItem(BUDGET_KEY);
+          if (raw) return JSON.parse(raw);
+        } catch (e) {}
+        return {};
+      }
+      function saveBudgetsLocal() {
+        try {
+          localStorage.setItem(BUDGET_KEY, JSON.stringify(budgets));
+        } catch (e) {}
+      }
+      function cryptoId() {
+        return crypto.randomUUID
+          ? crypto.randomUUID()
+          : "id-" + Math.random().toString(36).slice(2) + Date.now();
+      }
+
+      /* ---- Supabase row <-> app-shape mapping ---- */
+      function rowToTx(r) {
+        return {
+          id: r.id,
+          type: r.type,
+          desc: r.description,
+          amount: Number(r.amount),
+          category: r.category,
+          date: r.date,
+          note: r.note || "",
+          createdAt: new Date(r.created_at).getTime(),
+        };
+      }
+      function txToRow(t) {
+        return {
+          id: t.id,
+          user_id: me.id,
+          type: t.type,
+          description: t.desc,
+          amount: t.amount,
+          category: t.category,
+          date: t.date,
+          note: t.note || "",
+        };
+      }
+
+      /* ---- Unified data operations: branch on Supabase vs local ---- */
+      async function fetchAllData() {
+        if (sb && me) {
+          const [{ data: txData, error: txErr }, { data: bData, error: bErr }] =
+            await Promise.all([
+              sb.from("transactions").select("*").eq("user_id", me.id),
+              sb.from("budgets").select("*").eq("user_id", me.id),
+            ]);
+          if (txErr) {
+            toast("Could not load transactions: " + txErr.message);
+            txs = [];
+          } else txs = txData.map(rowToTx);
+          if (bErr) {
+            budgets = {};
+          } else {
+            budgets = {};
+            bData.forEach((b) => {
+              budgets[b.month] = Number(b.amount);
+            });
+          }
+        } else {
+          txs = loadTxsLocal();
+          budgets = loadBudgetsLocal();
+        }
+      }
+      async function addTxRemote(payload) {
+        const tx = { id: cryptoId(), createdAt: Date.now(), ...payload };
+        txs.push(tx);
+        if (sb && me) {
+          const { error } = await sb.from("transactions").insert(txToRow(tx));
+          if (error) toast("Sync error: " + error.message);
+        } else {
+          saveTxsLocal();
+        }
+      }
+      async function updateTxRemote(id, payload) {
+        const t = txs.find((x) => x.id === id);
+        Object.assign(t, payload);
+        if (sb && me) {
+          const { error } = await sb
+            .from("transactions")
+            .update(txToRow(t))
+            .eq("id", id);
+          if (error) toast("Sync error: " + error.message);
+        } else {
+          saveTxsLocal();
+        }
+      }
+      async function deleteTxRemote(id) {
+        txs = txs.filter((x) => x.id !== id);
+        if (sb && me) {
+          const { error } = await sb.from("transactions").delete().eq("id", id);
+          if (error) toast("Sync error: " + error.message);
+        } else {
+          saveTxsLocal();
+        }
+      }
+      async function setBudgetRemote(monthKeyStr, amount) {
+        if (amount && amount > 0) {
+          budgets[monthKeyStr] = amount;
+        } else {
+          delete budgets[monthKeyStr];
+        }
+        if (sb && me) {
+          let error;
+          if (amount && amount > 0) {
+            ({ error } = await sb
+              .from("budgets")
+              .upsert(
+                { user_id: me.id, month: monthKeyStr, amount },
+                { onConflict: "user_id,month" },
+              ));
+          } else {
+            ({ error } = await sb
+              .from("budgets")
+              .delete()
+              .eq("user_id", me.id)
+              .eq("month", monthKeyStr));
+          }
+          if (error) toast("Sync error: " + error.message);
+        } else {
+          saveBudgetsLocal();
+        }
+      }
+
+      function seedTxs() {
+        const now = new Date();
+        const iso = (day) => {
+          const d = new Date(now.getFullYear(), now.getMonth(), day);
+          return d.toISOString().slice(0, 10);
+        };
+        return [
+          {
+            id: cryptoId(),
+            type: "income",
+            desc: "Paycheck",
+            amount: 2400,
+            category: "other",
+            date: iso(1),
+            note: "",
+            createdAt: Date.now() - 1,
+          },
+          {
+            id: cryptoId(),
+            type: "expense",
+            desc: "Rent",
+            amount: 1150,
+            category: "housing",
+            date: iso(1),
+            note: "",
+            createdAt: Date.now() - 2,
+          },
+          {
+            id: cryptoId(),
+            type: "expense",
+            desc: "Groceries",
+            amount: 86.4,
+            category: "food",
+            date: iso(3),
+            note: "",
+            createdAt: Date.now() - 3,
+          },
+          {
+            id: cryptoId(),
+            type: "expense",
+            desc: "Metro pass",
+            amount: 60,
+            category: "transport",
+            date: iso(4),
+            note: "",
+            createdAt: Date.now() - 4,
+          },
+          {
+            id: cryptoId(),
+            type: "expense",
+            desc: "Electric bill",
+            amount: 74.15,
+            category: "utilities",
+            date: iso(6),
+            note: "",
+            createdAt: Date.now() - 5,
+          },
+          {
+            id: cryptoId(),
+            type: "expense",
+            desc: "Dinner with friends",
+            amount: 42.8,
+            category: "food",
+            date: iso(8),
+            note: "",
+            createdAt: Date.now() - 6,
+          },
+          {
+            id: cryptoId(),
+            type: "expense",
+            desc: "Movie tickets",
+            amount: 28,
+            category: "fun",
+            date: iso(10),
+            note: "",
+            createdAt: Date.now() - 7,
+          },
+        ];
+      }
+
+      /* ══════════════════════════════════════════════
+   MONTH HELPERS
+══════════════════════════════════════════════ */
+      function monthKey(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      }
+      function inViewMonth(dateStr) {
+        const d = new Date(dateStr + "T00:00:00");
+        return (
+          d.getFullYear() === viewDate.getFullYear() &&
+          d.getMonth() === viewDate.getMonth()
+        );
+      }
+      function fmtMoney(n) {
+        const sign = n < 0 ? "-" : "";
+        return (
+          sign +
+          "$" +
+          Math.abs(n).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        );
+      }
+      function fmtMonth(d) {
+        return d.toLocaleDateString("en-US", {
+          month: "long",
+          year: "numeric",
+        });
+      }
+
+      /* ══════════════════════════════════════════════
+   RENDER: summary + budget
+══════════════════════════════════════════════ */
+      function monthTxs() {
+        return txs.filter((t) => inViewMonth(t.date));
+      }
+      function renderSummary() {
+        document.getElementById("monthLabel").textContent = fmtMonth(viewDate);
+
+        const mtx = monthTxs();
+        const income = mtx
+          .filter((t) => t.type === "income")
+          .reduce((a, t) => a + t.amount, 0);
+        const expense = mtx
+          .filter((t) => t.type === "expense")
+          .reduce((a, t) => a + t.amount, 0);
+        const net = income - expense;
+
+        document.getElementById("incomeValue").textContent = fmtMoney(income);
+        document.getElementById("expenseValue").textContent = fmtMoney(expense);
+        document.getElementById("netValue").textContent = fmtMoney(net);
+        document.getElementById("netValue").style.color =
+          net < 0 ? "var(--red)" : "var(--text)";
+        document.getElementById("incomeSub").textContent =
+          mtx.filter((t) => t.type === "income").length + " transactions";
+        document.getElementById("expenseSub").textContent =
+          mtx.filter((t) => t.type === "expense").length + " transactions";
+
+        const key = monthKey(viewDate);
+        const budget = budgets[key];
+        const fill = document.getElementById("budgetFill");
+        const editBtn = document.getElementById("budgetEditBtn");
+        if (budget && budget > 0) {
+          const pct = Math.min(100, (expense / budget) * 100);
+          fill.style.width = pct + "%";
+          fill.classList.toggle("over", expense > budget);
+          editBtn.textContent = `${fmtMoney(expense)} of ${fmtMoney(budget)} budget`;
+        } else {
+          fill.style.width = "0%";
+          fill.classList.remove("over");
+          editBtn.textContent = "set a monthly budget";
+        }
+      }
+
+      /* ══════════════════════════════════════════════
+   RENDER: category breakdown
+══════════════════════════════════════════════ */
+      function renderBreakdown() {
+        const mtx = monthTxs().filter((t) => t.type === "expense");
+        const totals = {};
+        Object.keys(CATS).forEach((k) => (totals[k] = 0));
+        mtx.forEach((t) => {
+          if (totals[t.category] !== undefined) totals[t.category] += t.amount;
+        });
+
+        const entries = Object.entries(totals)
+          .filter(([, v]) => v > 0)
+          .sort((a, b) => b[1] - a[1]);
+        const max = Math.max(1, ...entries.map((e) => e[1]));
+        const wrap = document.getElementById("catBreakdown");
+
+        if (entries.length === 0) {
+          wrap.innerHTML = `<div class="cat-empty">No expenses logged this month yet.</div>`;
+          return;
+        }
+
+        wrap.innerHTML = entries
+          .map(([key, amt]) => {
+            const def = CATS[key];
+            const pct = (amt / max) * 100;
+            return `
+      <div class="cat-bar-row">
+        <div class="cat-bar-top">
+          <span class="cat-bar-name"><span class="cat-dot" style="background:${def.color}"></span>${def.label}</span>
+          <span class="cat-bar-amt mono">${fmtMoney(amt)}</span>
+        </div>
+        <div class="cat-bar-track"><div class="cat-bar-fill" style="width:${pct}%;background:${def.color}"></div></div>
+      </div>`;
+          })
+          .join("");
+      }
+
+      /* ══════════════════════════════════════════════
+   RENDER: ledger
+══════════════════════════════════════════════ */
+      function filteredTxs() {
+        return monthTxs()
+          .filter((t) => {
+            if (!query) return true;
+            const q = query.toLowerCase();
+            return (
+              t.desc.toLowerCase().includes(q) ||
+              (t.note || "").toLowerCase().includes(q) ||
+              CATS[t.category].label.toLowerCase().includes(q)
+            );
+          })
+          .sort(
+            (a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt,
+          );
+      }
+
+      function renderLedger() {
+        const list = filteredTxs();
+        const el = document.getElementById("ledger");
+
+        if (list.length === 0) {
+          el.innerHTML = `
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 4h13a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z"/><path d="M7 4v13a3 3 0 0 0 3 3h10"/></svg>
+        <h3>${txs.length === 0 ? "No transactions yet" : "Nothing matches"}</h3>
+        <p>${txs.length === 0 ? "Add your first transaction to start tracking the month." : "Try a different search, or check another month."}</p>
+        ${txs.length === 0 ? '<button class="btn btn-primary" id="emptyAddBtn"><span>Add transaction</span></button>' : ""}
+      </div>`;
+          const eb = document.getElementById("emptyAddBtn");
+          if (eb) eb.addEventListener("click", () => openSheet());
+          return;
+        }
+
+        // group by date
+        const groups = {};
+        list.forEach((t) => {
+          (groups[t.date] = groups[t.date] || []).push(t);
+        });
+        const dates = Object.keys(groups).sort().reverse();
+
+        el.innerHTML = dates
+          .map((date) => {
+            const items = groups[date];
+            const dayTotal = items.reduce(
+              (a, t) => a + (t.type === "income" ? t.amount : -t.amount),
+              0,
+            );
+            const d = new Date(date + "T00:00:00");
+            const label = d.toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            });
+            return `
+      <div class="day-group">
+        <div class="day-heading">${label}<span class="day-total">${dayTotal >= 0 ? "+" : ""}${fmtMoney(dayTotal)}</span></div>
+        ${items.map((t) => txRow(t)).join("")}
+      </div>`;
+          })
+          .join("");
+
+        el.querySelectorAll("[data-edit]").forEach((b) =>
+          b.addEventListener("click", () => openSheet(b.dataset.edit)),
+        );
+        el.querySelectorAll("[data-del]").forEach((b) =>
+          b.addEventListener("click", () => deleteTx(b.dataset.del)),
+        );
+      }
+
+      function txRow(t) {
+        const def = CATS[t.category] || CATS.other;
+        return `
+    <div class="tx-row">
+      <span class="tx-cat-dot" style="background:${t.type === "income" ? "var(--gain)" : def.color}"></span>
+      <div class="tx-main">
+        <div class="tx-desc">${escapeHtml(t.desc)}</div>
+        <div class="tx-meta">
+          <span>${t.type === "income" ? "Income" : def.label}</span>
+          ${t.note ? `<span>${escapeHtml(t.note)}</span>` : ""}
+        </div>
+      </div>
+      <div class="tx-amt ${t.type}">${t.type === "income" ? "+" : "-"}${fmtMoney(t.amount)}</div>
+      <div class="tx-actions">
+        <button class="icon-btn" data-edit="${t.id}" aria-label="Edit">${editIcon()}</button>
+        <button class="icon-btn danger" data-del="${t.id}" aria-label="Delete">${trashIcon()}</button>
+      </div>
+    </div>`;
+      }
+      function escapeHtml(s) {
+        return (s || "").replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      }
+      function editIcon() {
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`;
+      }
+      function trashIcon() {
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
+      }
+
+      function renderAll() {
+        renderSummary();
+        renderBreakdown();
+        renderLedger();
+      }
+
+      /* ══════════════════════════════════════════════
+   TX ACTIONS
+══════════════════════════════════════════════ */
+      async function deleteTx(id) {
+        const t = txs.find((x) => x.id === id);
+        if (!t) return;
+        if (!confirm(`Delete "${t.desc}"? This can't be undone.`)) return;
+        await deleteTxRemote(id);
+        renderAll();
+        toast("Transaction deleted.");
+      }
+
+      /* ══════════════════════════════════════════════
+   SHEET (add / edit)
+══════════════════════════════════════════════ */
+      const sheet = document.getElementById("sheet");
+      const overlay = document.getElementById("overlay");
+
+      function buildCatPicker() {
+        const wrap = document.getElementById("catPicker");
+        wrap.innerHTML = Object.entries(CATS)
+          .map(
+            ([key, def]) => `
+    <button type="button" class="cat-pick ${draftCat === key ? "active" : ""}" data-cat="${key}" style="color:${draftCat === key ? def.color : ""}">
+      <span class="cat-dot" style="background:${def.color}"></span>${def.label}
+    </button>`,
+          )
+          .join("");
+        wrap.querySelectorAll(".cat-pick").forEach((b) => {
+          b.addEventListener("click", () => {
+            draftCat = b.dataset.cat;
+            buildCatPicker();
+          });
+        });
+      }
+      function setType(type) {
+        draftType = type;
+        document
+          .querySelectorAll(".type-opt")
+          .forEach((b) =>
+            b.classList.toggle("active", b.dataset.type === type),
+          );
+        document.getElementById("catFld").style.display =
+          type === "income" ? "none" : "block";
+      }
+      document.getElementById("typeToggle").addEventListener("click", (ev) => {
+        const btn = ev.target.closest(".type-opt");
+        if (btn) setType(btn.dataset.type);
+      });
+
+      function openSheet(id) {
+        editingId = id || null;
+        const t = id ? txs.find((x) => x.id === id) : null;
+
+        document.getElementById("sheetTitle").textContent = t
+          ? "Edit transaction"
+          : "Add transaction";
+        document.getElementById("fDesc").value = t ? t.desc : "";
+        document.getElementById("fAmt").value = t ? t.amount : "";
+        document.getElementById("fDate").value = t
+          ? t.date
+          : new Date().toISOString().slice(0, 10);
+        document.getElementById("fNote").value = t ? t.note || "" : "";
+        draftCat = t ? t.category : "food";
+        setType(t ? t.type : "expense");
+        buildCatPicker();
+
+        sheet.classList.add("show");
+        overlay.classList.add("show");
+        setTimeout(() => document.getElementById("fDesc").focus(), 250);
+      }
+      function closeSheet() {
+        sheet.classList.remove("show");
+        overlay.classList.remove("show");
+        editingId = null;
+      }
+
+      document
+        .getElementById("newTxBtn")
+        .addEventListener("click", () => openSheet());
+      document
+        .getElementById("sheetClose")
+        .addEventListener("click", closeSheet);
+      document
+        .getElementById("cancelBtn")
+        .addEventListener("click", closeSheet);
+      overlay.addEventListener("click", () => {
+        closeSheet();
+        closeBudgetModal();
+      });
+      document.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape") {
+          closeSheet();
+          closeBudgetModal();
+        }
+      });
+
+      document.getElementById("saveBtn").addEventListener("click", async () => {
+        const desc = document.getElementById("fDesc").value.trim();
+        const amount = parseFloat(document.getElementById("fAmt").value);
+        const date = document.getElementById("fDate").value;
+
+        if (!desc) {
+          toast("Give the transaction a description.");
+          document.getElementById("fDesc").focus();
+          return;
+        }
+        if (!amount || amount <= 0) {
+          toast("Enter an amount greater than zero.");
+          document.getElementById("fAmt").focus();
+          return;
+        }
+        if (!date) {
+          toast("Pick a date.");
+          document.getElementById("fDate").focus();
+          return;
+        }
+
+        const payload = {
+          type: draftType,
+          desc,
+          amount,
+          date,
+          category: draftType === "income" ? "other" : draftCat,
+          note: document.getElementById("fNote").value.trim(),
+        };
+
+        const saveBtn = document.getElementById("saveBtn");
+        saveBtn.disabled = true;
+        if (editingId) {
+          await updateTxRemote(editingId, payload);
+          toast("Transaction updated.");
+        } else {
+          await addTxRemote(payload);
+          toast("Transaction added.");
+        }
+        saveBtn.disabled = false;
+        closeSheet();
+        viewDate = new Date(date + "T00:00:00");
+        renderAll();
+      });
+
+      /* ══════════════════════════════════════════════
+   BUDGET MODAL
+══════════════════════════════════════════════ */
+      const modalOverlay = document.getElementById("modalOverlay");
+      document.getElementById("budgetEditBtn").addEventListener("click", () => {
+        const key = monthKey(viewDate);
+        document.getElementById("fBudget").value = budgets[key] || "";
+        modalOverlay.classList.add("show");
+        setTimeout(() => document.getElementById("fBudget").focus(), 100);
+      });
+      document
+        .getElementById("budgetCancel")
+        .addEventListener("click", closeBudgetModal);
+      function closeBudgetModal() {
+        modalOverlay.classList.remove("show");
+      }
+      document
+        .getElementById("budgetSave")
+        .addEventListener("click", async () => {
+          const key = monthKey(viewDate);
+          const val = parseFloat(document.getElementById("fBudget").value);
+          await setBudgetRemote(key, val);
+          closeBudgetModal();
+          renderSummary();
+          toast("Budget saved.");
+        });
+
+      /* ══════════════════════════════════════════════
+   MONTH NAV / SEARCH
+══════════════════════════════════════════════ */
+      document.getElementById("prevMonth").addEventListener("click", () => {
+        viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1);
+        renderAll();
+      });
+      document.getElementById("nextMonth").addEventListener("click", () => {
+        viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
+        renderAll();
+      });
+      let searchDebounce;
+      document.getElementById("searchInput").addEventListener("input", (ev) => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => {
+          query = ev.target.value.trim();
+          renderLedger();
+        }, 120);
+      });
+
+      /* ══════════════════════════════════════════════
+   TOAST
+══════════════════════════════════════════════ */
+      function toast(msg) {
+        const host = document.getElementById("toastHost");
+        const el = document.createElement("div");
+        el.className = "toast";
+        el.textContent = msg;
+        host.appendChild(el);
+        setTimeout(() => {
+          el.style.opacity = "0";
+          el.style.transition = "opacity .2s";
+          setTimeout(() => el.remove(), 200);
+        }, 2600);
+      }
+
+      /* ══════════════════════════════════════════════
+   AUTH GATE
+══════════════════════════════════════════════ */
+      const authGate = document.getElementById("authGate");
+      const appEl = document.getElementById("app");
+
+      function showAuthGate() {
+        authGate.style.display = "flex";
+        appEl.style.display = "none";
+      }
+      function showApp() {
+        authGate.style.display = "none";
+        appEl.style.display = "block";
+      }
+
+      function authAlert(msg, ok) {
+        const el = document.getElementById("authAlert");
+        el.textContent = msg;
+        el.className = "auth-alert " + (ok ? "ok" : "err");
+      }
+      function clearAuthAlert() {
+        const el = document.getElementById("authAlert");
+        el.className = "auth-alert";
+      }
+
+      function setAuthMode(mode) {
+        authMode = mode;
+        document.getElementById("authTitle").textContent =
+          mode === "signin" ? "Sign in" : "Create your account";
+        document.getElementById("authSubmitLabel").textContent =
+          mode === "signin" ? "Sign in" : "Create account";
+        document.getElementById("authToggle").innerHTML =
+          mode === "signin"
+            ? `Don't have an account? <span id="authToggleLink">Create one</span>`
+            : `Already have an account? <span id="authToggleLink">Sign in</span>`;
+        document
+          .getElementById("authToggleLink")
+          .addEventListener("click", () => {
+            clearAuthAlert();
+            setAuthMode(mode === "signin" ? "signup" : "signin");
+          });
+      }
+
+      document
+        .getElementById("authLocalBtn")
+        .addEventListener("click", async () => {
+          localOnly = true;
+          me = null;
+          updateSyncBadge();
+          await fetchAllData();
+          showApp();
+          renderAll();
+        });
+
+      document
+        .getElementById("authSubmit")
+        .addEventListener("click", async () => {
+          clearAuthAlert();
+          const email = document.getElementById("authEmail").value.trim();
+          const password = document.getElementById("authPassword").value;
+          if (!email || !password) {
+            authAlert("Enter an email and password.");
+            return;
+          }
+          if (password.length < 6) {
+            authAlert("Password needs to be at least 6 characters.");
+            return;
+          }
+
+          const btn = document.getElementById("authSubmit");
+          btn.disabled = true;
+          try {
+            if (authMode === "signin") {
+              const { data, error } = await sb.auth.signInWithPassword({
+                email,
+                password,
+              });
+              if (error) {
+                authAlert(error.message);
+                return;
+              }
+              me = data.user;
+              await afterSignIn();
+            } else {
+              const { data, error } = await sb.auth.signUp({ email, password });
+              if (error) {
+                authAlert(error.message);
+                return;
+              }
+              if (data.user && !data.session) {
+                authAlert(
+                  "Check your inbox to confirm your email, then sign in.",
+                  true,
+                );
+                setAuthMode("signin");
+              } else {
+                me = data.user;
+                await afterSignIn();
+              }
+            }
+          } finally {
+            btn.disabled = false;
+          }
+        });
+
+      async function afterSignIn() {
+        localOnly = false;
+        updateSyncBadge();
+        await fetchAllData();
+        subscribeRealtime();
+        showApp();
+        renderAll();
+        toast("Signed in — synced to your account.");
+      }
+
+      document
+        .getElementById("accountBtn")
+        .addEventListener("click", async () => {
+          if (!confirm("Sign out of Ledger?")) return;
+          if (realtimeChannel) sb.removeChannel(realtimeChannel);
+          await sb.auth.signOut();
+          me = null;
+          txs = [];
+          budgets = {};
+          setAuthMode("signin");
+          clearAuthAlert();
+          showAuthGate();
+        });
+
+      function updateSyncBadge() {
+        const badge = document.getElementById("syncBadge");
+        const accountBtn = document.getElementById("accountBtn");
+        if (sb && me) {
+          badge.className = "sync-badge on";
+          badge.innerHTML = `<span class="sync-dot-live"></span> Synced · ${escapeHtml(me.email || "")}`;
+          accountBtn.style.display = "flex";
+        } else {
+          badge.className = "sync-badge local";
+          badge.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> This device only`;
+          accountBtn.style.display = "none";
+        }
+      }
+
+      function subscribeRealtime() {
+        if (!sb || !me) return;
+        realtimeChannel = sb
+          .channel("ledger-sync-" + me.id)
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "transactions",
+              filter: `user_id=eq.${me.id}`,
+            },
+            async () => {
+              await fetchAllData();
+              renderAll();
+            },
+          )
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "budgets",
+              filter: `user_id=eq.${me.id}`,
+            },
+            async () => {
+              await fetchAllData();
+              renderAll();
+            },
+          )
+          .subscribe();
+      }
+
+      /* ══════════════════════════════════════════════
+   BOOT
+══════════════════════════════════════════════ */
+      (async () => {
+        setAuthMode("signin");
+
+        if (!sb) {
+          // No Supabase project configured — run entirely in local-only mode.
+          localOnly = true;
+          updateSyncBadge();
+          await fetchAllData();
+          showApp();
+          renderAll();
+          return;
+        }
+
+        const {
+          data: { session },
+        } = await sb.auth.getSession();
+        if (session?.user) {
+          me = session.user;
+          await afterSignIn();
+        } else {
+          showAuthGate();
+        }
+      })();
+    </script>
+
+    <!--
+══════════════════════════════════════════════════════════════
+  📋 SUPABASE SETUP — Run this SQL in your project's SQL Editor
+══════════════════════════════════════════════════════════════
+
+-- 1. TRANSACTIONS
+create table transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  type text not null check (type in ('income','expense')),
+  description text not null,
+  amount numeric(12,2) not null check (amount > 0),
+  category text not null default 'other',
+  date date not null,
+  note text,
+  created_at timestamptz default now()
+);
+alter table transactions enable row level security;
+create policy "Users manage their own transactions" on transactions
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create index transactions_user_date_idx on transactions (user_id, date);
+
+-- 2. BUDGETS (one row per user per month, e.g. month = '2026-09')
+create table budgets (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  month text not null,
+  amount numeric(12,2) not null check (amount > 0),
+  created_at timestamptz default now(),
+  unique (user_id, month)
+);
+alter table budgets enable row level security;
+create policy "Users manage their own budgets" on budgets
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- 3. Enable Realtime (optional, powers live multi-device sync in the app)
+-- Dashboard → Database → Replication → Enable for: transactions, budgets
+
+-- 4. Auth settings (Dashboard → Authentication → Settings)
+--   Email confirmations: your choice — ON requires clicking a link before first sign-in
+--   Site URL: your domain, if you deploy this beyond your own browser
+
+-- 5. Plug in your project's values at the top of the <script> block in this file:
+--   const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+--   const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
+--   (Find both under Project Settings → API. The anon/public key is safe to
+--    ship in client-side code — row-level security above is what keeps each
+--    person's data private, not the key itself.)
+--   Leaving the placeholders in place keeps Ledger running in local-only
+--   mode (data stays in this browser's localStorage, no account needed).
+
+══════════════════════════════════════════════════════════════
+-->
+  </body>
+</html>
